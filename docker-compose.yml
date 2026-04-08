@@ -6,11 +6,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app          # live reload
-      - ./data:/app/data        # SQLite database persistence
-    network_mode: host          # required for arp-scan to see LAN devices
+      - ./backend:/app          # Código fuente del backend
+      - ./data:/app/data        # Persistencia de datos (SQLite)
     cap_add:
-      - NET_RAW                 # required for arp-scan
+      - NET_RAW                 # Permitir escaneo de red (nmap)
 
   frontend:
     build:
