@@ -1,9 +1,11 @@
 import subprocess
 import re
+from .utils import get_active_interface
 
 def run_arp_scan() -> list[dict]:
+    interface = get_active_interface()
     results = subprocess.run(
-        ["sudo", "arp-scan", "--interface=eth2", "--localnet"],
+        ["sudo", "arp-scan", f"--interface={interface}", "--localnet"],
         capture_output=True,
         text=True
         )

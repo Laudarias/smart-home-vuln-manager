@@ -1,21 +1,18 @@
 import subprocess
 import xml.etree.ElementTree as ET
+from .utils import get_active_interface
 
 def run_nmap(ips: list[str]) -> dict[str, dict]:
     if not ips:
         return {}
     
-    print(f"Corriendo Nmap contra {len(ips)} IPs: {ips}")
+    interface = get_active_interface()    
     result = subprocess.run(
-        ["sudo", "nmap", "-sV", "-O", "-oX", "-" ,"-T4", "--max-retries=1", "--host-timeout=30s"] + ips,
+        ["sudo", "nmap", "-sV", "--open", "-oX", "-", "-T4", "--max-retries=1", "--host-timeout=30s", "-e", interface] + ips,
         capture_output=True,
         text=True
     )
-    print(f"Nmap returncode: {result.returncode}")
-    print(f"Nmap stderr: {result.stderr[:200]}")
-    print(f"Nmap stdout length: {len(result.stdout)}")
     parsed = parse_nmap_output(result.stdout)
-    print(f"Dispositivos parseados: {parsed}")
     return parsed
 
 def parse_nmap_output(xml_output: str) -> dict[str, dict]:
@@ -29,7 +26,7 @@ def parse_nmap_output(xml_output: str) -> dict[str, dict]:
     for host in root.findall("host"):
         # Solo procesar hosts que estén "up"
         status = host.find("status").get("state")
-        if status is None or status.get("state") != "up":
+        if status is None or status != "up":
             continue
 
         # Extraer IP, puertos y sistema operativo
