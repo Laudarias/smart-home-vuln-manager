@@ -1,23 +1,14 @@
-"""
-Conexión a la base de datos y configuración de SQLAlchemy.
-Aquí se definen:
-- la URL de la base de datos
-- el motor de SQLAlchemy
-- la sesión
-- la clase base para los modelos
-"""
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-import os
+from app.config import DATABASE_URL
 
-BASE_DIR = os.path.expanduser("~/proyecto/data")
-os.makedirs(BASE_DIR, exist_ok=True)
-DATABASE_URL = f"sqlite:///{BASE_DIR}/app.db"
-
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(bind=engine)
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False},  # necesario para SQLite
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
@@ -25,3 +16,12 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def create_tables():
+    """Importar todos los modelos antes de crear las tablas."""
+    from app.models.user import User           # noqa: F401
+    from app.models.device import Device       # noqa: F401
+    from app.models.scan import Scan           # noqa: F401
+    from app.models.vulnerability import Vulnerability  # noqa: F401
+    Base.metadata.create_all(bind=engine)
