@@ -1,16 +1,14 @@
 from sqlalchemy import Column, Integer, String, DateTime
-from datetime import datetime, timezone
-from app.models import Base
-
+from sqlalchemy.sql import func
+from app.database import Base
 
 class Scan(Base):
     __tablename__ = "scans"
-
     id            = Column(Integer, primary_key=True, index=True)
-    scan_type     = Column(String)   # manual | scheduled | discovery
-    status        = Column(String, default="pending")   # pending | running | done | error
-    started_at    = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    completed_at  = Column(DateTime, nullable=True)
-    device_count  = Column(Integer, default=0, nullable=True)
-    vuln_count    = Column(Integer, default=0, nullable=True)
-    error_message = Column(String, nullable=True)
+    status        = Column(String, default="running")
+    scan_type     = Column(String, default="full")
+    devices_found = Column(Integer, default=0)
+    vulns_found   = Column(Integer, default=0)
+    started_at    = Column(DateTime, server_default=func.now())
+    completed_at  = Column(DateTime)
+    error_message = Column(String)

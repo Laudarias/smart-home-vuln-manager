@@ -9,11 +9,12 @@ from fastapi.responses import FileResponse
 
 from app.models import create_tables
 from app.auth import get_or_create_user
-from app.models import SessionLocal
+from app.database import SessionLocal
+from app.config import DEFAULT_SCAN_INTERVAL_MINUTES
 from app.api.auth import router as auth_router
 from app.api.devices import router as devices_router
-from app.api.scans import router as scans_router, run_full_scan
-from scanner.continuous_scanner import set_scan_function, start_scheduler, stop_scheduler
+from app.api.scans import router as scans_router
+import scanner.continuous_scanner as cs
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -43,21 +44,20 @@ async def lifespan(app: FastAPI):
         db.close()
 
     # Registrar función de escaneo en el scheduler y arrancar
-    def _sync_scan(scan_type: str):
-        from app.models import SessionLocal as SL
-        db2 = SL()
+    async def _scan_job():
+        db2 = SessionLocal()
         try:
-            run_full_scan(scan_type=scan_type, db=db2)
+            from app.api.scans import run_full_scan
+            run_full_scan(scan_type="scheduled", db=db2)
         finally:
             db2.close()
 
-    set_scan_function(_sync_scan)
-    start_scheduler()
+    cs.start_scheduler(_scan_job, DEFAULT_SCAN_INTERVAL_MINUTES)
 
     yield  # ← la app está corriendo
 
     # Shutdown
-    stop_scheduler()
+    cs.stop_scheduler()
     logger.info("Servidor detenido.")
 
 

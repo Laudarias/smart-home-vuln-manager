@@ -277,6 +277,82 @@ def best_display_name(
     mdns_name: Optional[str],
     netbios_name: Optional[str],
     manufacturer: Optional[str],
+    device_type: Optional[str],
     ip: str,
 ) -> str:
-    return mdns_name or hostname or netbios_name or manufacturer or ip
+    """Devuelve el mejor nombre para mostrar al usuario."""
+    if mdns_name:
+        return mdns_name
+    if netbios_name:
+        return netbios_name
+    if hostname:
+        return hostname
+    if manufacturer and device_type:
+        return f"{manufacturer} ({device_type})"
+    return ip
+
+def identify_device(device: dict) -> dict:
+    """
+    Recibe un dict con la información del dispositivo del pipeline
+    y lo enriquece con identificación avanzada.
+
+    Entrada esperada:
+    {
+        "ip": str,
+        "mac": str,
+        "manufacturer": str,
+        "hostname": str | None,
+        "os_family": str | None,
+        "os_name": str | None,
+        "os_accuracy": int | None,
+        "ports": list[dict]
+    }
+
+    Salida: mismo dict + mdns_name, netbios_name, device_type, display_name
+    """
+    ip = device.get("ip")
+    manufacturer = device.get("manufacturer")
+    os_name = device.get("os_name")
+    ports = device.get("ports", [])
+
+    # 1. MAC OUI - limpiar fabricante
+    if manufacturer:
+        # Eliminar texto entre paréntesis
+        import re
+        manufacturer = re.sub(r'\([^)]*\)', '', manufacturer).strip()
+        device["manufacturer"] = manufacturer
+
+    # 2. mDNS/Bonjour
+    mdns_devices = discover_mdns_devices()
+    mdns_name = mdns_devices.get(ip)
+    device["mdns_name"] = mdns_name
+
+    # 3. NetBIOS
+    netbios_name = get_netbios_name(ip)
+    device["netbios_name"] = netbios_name
+
+    # 4. DNS inverso - actualizar hostname si no existe
+    if not device.get("hostname"):
+        device["hostname"] = get_reverse_dns(ip)
+
+    # 5. SSDP/UPnP para tipo de dispositivo
+    ssdp_devices = discover_ssdp_devices()
+    ssdp_info = ssdp_devices.get(ip, {})
+    ssdp_type = ssdp_info.get("type")
+
+    # 6. Inferir tipo de dispositivo
+    device_type = infer_device_type(manufacturer, os_name, ports, ssdp_type)
+    device["device_type"] = device_type
+
+    # 7. Display name
+    display_name = best_display_name(
+        device.get("hostname"),
+        mdns_name,
+        netbios_name,
+        manufacturer,
+        device_type,
+        ip
+    )
+    device["display_name"] = display_name
+
+    return device

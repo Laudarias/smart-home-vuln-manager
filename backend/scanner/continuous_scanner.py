@@ -69,9 +69,16 @@ def update_interval(minutes: int):
     logger.info(f"Intervalo de escaneo actualizado a {minutes} minutos.")
 
 
-def get_next_scan_time() -> str | None:
+def get_next_run_time() -> str | None:
     """Retorna la hora del próximo escaneo como string ISO, o None."""
     job = scheduler.get_job("continuous_scan")
     if job and job.next_run_time:
         return job.next_run_time.isoformat()
     return None
+
+def get_current_interval() -> int:
+    """Retorna el intervalo actual en minutos."""
+    job = scheduler.get_job("continuous_scan")
+    if job and hasattr(job.trigger, 'interval'):
+        return int(job.trigger.interval.total_seconds() // 60)
+    return 0

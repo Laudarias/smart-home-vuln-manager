@@ -75,6 +75,7 @@ def parse_nmap_xml(xml_output: str) -> dict[str, dict]:
 
         # ── Sistema operativo ─────────────────────────────────────────────
         os_name: str | None = None
+        os_family: str | None = None
         os_accuracy: int | None = None
         os_elem = host.find("os")
         if os_elem is not None:
@@ -89,6 +90,20 @@ def parse_nmap_xml(xml_output: str) -> dict[str, dict]:
                     best_match = (osmatch.get("name"), acc)
             if best_match:
                 os_name, os_accuracy = best_match
+                # Clasificar OS family
+                os_name_lower = (os_name or "").lower()
+                if "windows" in os_name_lower:
+                    os_family = "Windows"
+                elif "linux" in os_name_lower:
+                    os_family = "Linux"
+                elif "mac os" in os_name_lower or "macos" in os_name_lower or "darwin" in os_name_lower:
+                    os_family = "macOS"
+                elif "android" in os_name_lower:
+                    os_family = "Android"
+                elif "ios" in os_name_lower or "iphone" in os_name_lower or "ipad" in os_name_lower:
+                    os_family = "iOS"
+                elif "bsd" in os_name_lower:
+                    os_family = "BSD"
 
         # Intentar obtener OS desde scripts (smb-os-discovery, nbstat)
         hostscript_elem = host.find("hostscript")
@@ -127,6 +142,7 @@ def parse_nmap_xml(xml_output: str) -> dict[str, dict]:
 
         devices[ip] = {
             "hostname":    hostname,
+            "os_family":   os_family,
             "os_name":     os_name,
             "os_accuracy": os_accuracy,
             "ports":       ports,

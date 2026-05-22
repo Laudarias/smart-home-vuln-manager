@@ -1,90 +1,78 @@
-/**
- * Cliente HTTP centralizado para la API del backend.
- *
- * - Lee la URL base de la variable de entorno VITE_API_URL
- *   (o usa "/" si está vacía — cuando FastAPI sirve el frontend directamente).
- * - Adjunta el token JWT en cada petición autenticada.
- * - Redirige al login si el servidor responde 401.
- */
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-const BASE_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, "") ?? "";
+const getToken = () => localStorage.getItem('token');
 
-function getToken() {
-  return localStorage.getItem("auth_token");
-}
-
-export function saveToken(token) {
-  localStorage.setItem("auth_token", token);
-}
-
-export function clearToken() {
-  localStorage.removeItem("auth_token");
-}
-
-async function request(path, options = {}) {
-  const token = getToken();
-  const headers = {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers ?? {}),
-  };
-
-  const response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-
+const handleResponse = async (response) => {
   if (response.status === 401) {
-    clearToken();
-    window.location.href = "/login";
-    throw new Error("Sesión expirada");
+    localStorage.removeItem('token');
+    window.location.reload();
+    throw new Error('No autenticado');
   }
 
   if (!response.ok) {
-    const err = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(err.detail ?? "Error desconocido");
+    const error = await response.json().catch(() => ({ detail: 'Error desconocido' }));
+    throw new Error(error.detail || 'Error en la petición');
   }
 
-  // 204 No Content
-  if (response.status === 204) return null;
   return response.json();
-}
+};
 
-// ── Auth ──────────────────────────────────────────────────────────────────
+const request = async (endpoint, options = {}) => {
+  const token = getToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
 
-export const authApi = {
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  return handleResponse(response);
+};
+
+export const api = {
+  // Auth
   login: (password) =>
-    request("/api/auth/login", {
-      method: "POST",
+    request('/api/auth/login', {
+      method: 'POST',
       body: JSON.stringify({ password }),
     }),
 
-  changePassword: (currentPassword, newPassword) =>
-    request("/api/auth/change-password", {
-      method: "POST",
-      body: JSON.stringify({
-        current_password: currentPassword,
-        new_password: newPassword,
-      }),
+  me: () => request('/api/auth/me'),
+
+  changePassword: (current_password, new_password) =>
+    request('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password, new_password }),
     }),
 
-  status: () => request("/api/auth/status"),
-};
+  // Scans
+  startScan: () =>
+    request('/api/scans/discover', { method: 'POST' }),
 
-// ── Dispositivos ──────────────────────────────────────────────────────────
+  listScans: () => request('/api/scans'),
 
-export const devicesApi = {
-  getAll: () => request("/api/devices/"),
-  getById: (id) => request(`/api/devices/${id}`),
-  getVulnerabilities: (id) => request(`/api/devices/${id}/vulnerabilities`),
-};
+  scanStatus: () => request('/api/scans/status'),
 
-// ── Escaneos ──────────────────────────────────────────────────────────────
+  setInterval: (interval_minutes) =>
+    request('/api/scans/interval', {
+      method: 'PUT',
+      body: JSON.stringify({ scan_interval_minutes: interval_minutes }),
+    }),
 
-export const scansApi = {
-  getAll: () => request("/api/scans/"),
-  startScan: () => request("/api/scans/discover", { method: "POST" }),
-  getStatus: () => request("/api/scans/status"),
-  updateSettings: (scanIntervalMinutes) =>
-    request("/api/scans/settings", {
-      method: "POST",
-      body: JSON.stringify({ scan_interval_minutes: scanIntervalMinutes }),
+  // Devices
+  listDevices: () => request('/api/devices'),
+
+  getDevice: (id) => request(`/api/devices/${id}`),
+
+  resolveVuln: (deviceId, vulnId) =>
+    request(`/api/devices/${deviceId}/vulnerabilities/${vulnId}/resolve`, {
+      method: 'POST',
     }),
 };

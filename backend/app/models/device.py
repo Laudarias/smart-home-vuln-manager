@@ -11,35 +11,25 @@ Campos de identificación enriquecida:
   - device_type   → categoría inferida (router, mobile, computer, smart-home, etc.)
 """
 from sqlalchemy import Column, Integer, String, DateTime, JSON
-from datetime import datetime, timezone
-from app.models import Base
+from sqlalchemy.sql import func
+from app.database import Base
 
 
 class Device(Base):
     __tablename__ = "devices"
 
     id           = Column(Integer, primary_key=True, index=True)
-    ip           = Column(String, unique=True, nullable=False, index=True)
-    mac          = Column(String, nullable=True)
-
-    # Identificación
-    manufacturer = Column(String, nullable=True)   # de MAC OUI
-    hostname     = Column(String, nullable=True)   # DNS / nmap hostname
-    mdns_name    = Column(String, nullable=True)   # mDNS / Bonjour
-    netbios_name = Column(String, nullable=True)   # NetBIOS (Windows)
-
-    # Sistema operativo
-    os_name      = Column(String, nullable=True)   # ej. "Linux 5.15" / "Windows 11"
-    os_accuracy  = Column(Integer, nullable=True)  # confianza en %
-
-    # Tipo de dispositivo (inferido)
-    device_type  = Column(String, nullable=True)   # router|mobile|computer|smart-home|tv|printer|nas|unknown
-
-    # Puertos abiertos como lista JSON
-    ports        = Column(JSON, default=list)
-
-    # Estado
-    status       = Column(String, default="online")   # online | offline
-    first_seen   = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    last_seen    = Column(DateTime, default=lambda: datetime.now(timezone.utc),
-                          onupdate=lambda: datetime.now(timezone.utc))
+    ip           = Column(String, unique=True, index=True)
+    mac          = Column(String)
+    manufacturer = Column(String)
+    hostname     = Column(String)
+    mdns_name    = Column(String)
+    netbios_name = Column(String)
+    display_name = Column(String)
+    os_family    = Column(String)
+    os_name      = Column(String)
+    os_accuracy  = Column(Integer)
+    device_type  = Column(String)
+    ports        = Column(JSON)
+    status       = Column(String, default="active")
+    last_seen    = Column(DateTime, server_default=func.now(), onupdate=func.now())

@@ -64,19 +64,16 @@ def _scan_ip(ip: str) -> list[dict]:
         # Solución / remediación
         solution = info.get("remediation") or info.get("fix") or None
 
-        cve_ids = classification.get("cve-id") or []
-        if isinstance(cve_ids, str):
-            cve_ids = [cve_ids]
+        # CVE ID - template-id como ID principal
+        cve_id = data.get("template-id") or data.get("templateID")
 
         findings.append({
             "ip":          data.get("host", ip).split(":")[0],
-            "template_id": data.get("template-id") or data.get("templateID"),
-            "name":        info.get("name"),
-            "severity":    info.get("severity"),
+            "cve_id":      cve_id,
+            "title":       info.get("name"),
+            "severity":    info.get("severity", "").lower(),
             "cvss_score":  cvss_score,
             "description": info.get("description"),
-            "matched_at":  data.get("matched-at"),
-            "cve_id":      cve_ids,
             "references":  references,
             "solution":    solution,
         })

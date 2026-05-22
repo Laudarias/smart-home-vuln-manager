@@ -71,7 +71,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-xs text-gray-600 mt-6">
-          Acceso restringido al propietario del hogar
+          Contraseña por defecto: <code className="text-gray-400">admin123</code>
         </p>
       </div>
     </div>

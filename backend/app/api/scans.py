@@ -15,25 +15,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.models import get_db
+from app.database import get_db, SessionLocal
 from app.models.scan import Scan
 from app.models.device import Device
 from app.models.vulnerability import Vulnerability
-from app.schemas.scan import ScanOut
 from app.auth import get_current_user
 from app.models.user import User
 from scanner.arp_runner import run_arp_scan
 from scanner.nmap_runner import run_nmap
 from scanner.nuclei_runner import run_nuclei
-from scanner.device_identifier import (
-    get_manufacturer,
-    get_reverse_dns,
-    get_netbios_name,
-    discover_mdns_devices,
-    discover_ssdp_devices,
-    infer_device_type,
-)
-from scanner.continuous_scanner import update_interval, get_next_scan_time
+from scanner.device_identifier import identify_device
+import scanner.continuous_scanner as cs
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/scans", tags=["scans"])
@@ -106,57 +98,38 @@ def run_full_scan(scan_type: str = "manual", db: Session | None = None):
 
         passive_thread.join(timeout=20)  # esperar mDNS/SSDP máximo 20s
 
-        # ── 4. Guardar/actualizar dispositivos ─────────────────────────────
+        # ── 4. Enriquecer y guardar dispositivos ───────────────────────
         logger.info("Fase 4: enriquecimiento y guardado de dispositivos")
         for d in arp_results:
             ip  = d["ip"]
             mac = d["mac"]
+            manufacturer = d.get("manufacturer")
             nmap_data = nmap_results.get(ip, {})
-            ports     = nmap_data.get("ports", [])
 
-            # Fabricante desde MAC OUI
-            manufacturer = d.get("manufacturer") or get_manufacturer(mac) or None
+            # Merge de datos arp + nmap
+            device_data = {
+                "ip": ip,
+                "mac": mac,
+                "manufacturer": manufacturer,
+                "hostname": nmap_data.get("hostname"),
+                "os_family": nmap_data.get("os_family"),
+                "os_name": nmap_data.get("os_name"),
+                "os_accuracy": nmap_data.get("os_accuracy"),
+                "ports": nmap_data.get("ports", []),
+            }
 
-            # Nombre del dispositivo (prioridad: mDNS > nmap hostname > NetBIOS > DNS)
-            mdns_name    = mdns_map.get(ip)
-            hostname     = nmap_data.get("hostname") or get_reverse_dns(ip)
-            netbios_name = get_netbios_name(ip)
+            # Identificar dispositivo (añade mdns_name, netbios_name, device_type, display_name)
+            enriched = identify_device(device_data)
 
-            # OS
-            os_name      = nmap_data.get("os_name")
-            os_accuracy  = nmap_data.get("os_accuracy")
-
-            # Tipo de dispositivo
-            ssdp_type    = ssdp_map.get(ip, {}).get("type")
-            device_type  = infer_device_type(manufacturer, os_name, ports, ssdp_type)
-
+            # Guardar/actualizar en DB
             device = db.query(Device).filter(Device.ip == ip).first()
             if device:
-                device.mac          = mac
-                device.manufacturer = manufacturer
-                device.hostname     = hostname
-                device.mdns_name    = mdns_name
-                device.netbios_name = netbios_name
-                device.os_name      = os_name
-                device.os_accuracy  = os_accuracy
-                device.device_type  = device_type
-                device.ports        = ports
-                device.status       = "online"
-                device.last_seen    = datetime.now(timezone.utc)
+                for key, value in enriched.items():
+                    setattr(device, key, value)
+                device.status = "active"
+                device.last_seen = datetime.now(timezone.utc)
             else:
-                db.add(Device(
-                    ip=ip,
-                    mac=mac,
-                    manufacturer=manufacturer,
-                    hostname=hostname,
-                    mdns_name=mdns_name,
-                    netbios_name=netbios_name,
-                    os_name=os_name,
-                    os_accuracy=os_accuracy,
-                    device_type=device_type,
-                    ports=ports,
-                    status="online",
-                ))
+                db.add(Device(**enriched, status="active"))
 
         # Marcar como offline los dispositivos que no aparecieron en este escaneo
         db.query(Device).filter(Device.ip.notin_(ips)).update(
@@ -176,23 +149,21 @@ def run_full_scan(scan_type: str = "manual", db: Session | None = None):
                 db.add(Vulnerability(
                     device_id=device.id,
                     scan_id=scan.id,
-                    template_id=vuln["template_id"],
                     cve_id=vuln["cve_id"],
-                    name=vuln["name"],
+                    title=vuln["title"],
                     severity=vuln["severity"],
                     cvss_score=vuln["cvss_score"],
                     description=vuln["description"],
-                    matched_at=vuln["matched_at"],
                     solution=vuln["solution"],
                     references=vuln["references"],
                 ))
                 vuln_count += 1
 
         # ── 6. Finalizar escaneo ───────────────────────────────────────────
-        scan.status      = "done"
-        scan.device_count = len(arp_results)
-        scan.vuln_count  = vuln_count
-        scan.completed_at = datetime.now(timezone.utc)
+        scan.status        = "done"
+        scan.devices_found = len(arp_results)
+        scan.vulns_found   = vuln_count
+        scan.completed_at  = datetime.now(timezone.utc)
         db.commit()
         db.refresh(scan)
         logger.info(f"Escaneo completado: {len(arp_results)} dispositivos, {vuln_count} vulnerabilidades.")
@@ -242,18 +213,20 @@ def scan_status(current_user: User = Depends(get_current_user)):
     """Informa si hay un escaneo en curso y cuándo es el próximo escaneo automático."""
     return {
         "scanning": _scan_lock.locked(),
-        "next_scheduled_scan": get_next_scan_time(),
+        "interval_minutes": cs.get_current_interval(),
+        "next_run": cs.get_next_run_time(),
     }
 
 
-@router.post("/settings")
-def update_settings(
+@router.put("/interval")
+def set_scan_interval(
     body: ScanSettings,
     current_user: User = Depends(get_current_user),
 ):
     """Cambia el intervalo de escaneo automático (0 = desactivar)."""
-    update_interval(body.scan_interval_minutes)
+    cs.update_interval(body.scan_interval_minutes)
     return {
-        "message": f"Intervalo actualizado a {body.scan_interval_minutes} minutos.",
-        "next_scheduled_scan": get_next_scan_time(),
+        "message": "Intervalo actualizado",
+        "interval_minutes": body.scan_interval_minutes,
+        "next_run": cs.get_next_run_time(),
     }

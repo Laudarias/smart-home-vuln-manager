@@ -1,35 +1,31 @@
 import os
 import secrets
-from pathlib import Path
 
 # Directorio de datos (base de datos, clave secreta, resultados de escaneo)
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+BASE_DIR = os.path.expanduser("~/smart-home-vuln-manager/data")
+os.makedirs(BASE_DIR, exist_ok=True)
 
 # Clave secreta para firmar tokens JWT
-_SECRET_KEY_FILE = DATA_DIR / ".secret_key"
+SECRET_KEY_FILE = os.path.join(BASE_DIR, ".secret_key")
 
-def _get_or_create_secret_key() -> str:
-    if _SECRET_KEY_FILE.exists():
-        return _SECRET_KEY_FILE.read_text().strip()
+def _load_or_create_secret() -> str:
+    if os.path.exists(SECRET_KEY_FILE):
+        with open(SECRET_KEY_FILE) as f:
+            return f.read().strip()
     key = secrets.token_hex(32)
-    _SECRET_KEY_FILE.write_text(key)
-    _SECRET_KEY_FILE.chmod(0o600)   # sólo el propietario puede leer
+    with open(SECRET_KEY_FILE, "w") as f:
+        f.write(key)
+    os.chmod(SECRET_KEY_FILE, 0o600)
     return key
 
-SECRET_KEY: str = _get_or_create_secret_key()
+SECRET_KEY = _load_or_create_secret()
 
 # JWT
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 24 * 7  # 7 días; el usuario no tiene que iniciar sesión tan seguido
+ACCESS_TOKEN_EXPIRE_DAYS = 7
 
 # Base de datos
-DATABASE_URL = f"sqlite:///{DATA_DIR}/app.db"
+DATABASE_URL = f"sqlite:///{BASE_DIR}/app.db"
 
 # Escaneo continuo (minutos entre escaneos automáticos; 0 = desactivado)
-SCAN_INTERVAL_MINUTES: int = int(os.environ.get("SCAN_INTERVAL_MINUTES", "60"))
-
-# Directorio temporal para resultados de escaneo
-SCAN_TMP_DIR = DATA_DIR / "scan_tmp"
-SCAN_TMP_DIR.mkdir(exist_ok=True)
+DEFAULT_SCAN_INTERVAL_MINUTES = 60
