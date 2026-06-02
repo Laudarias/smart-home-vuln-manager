@@ -1,3 +1,4 @@
+# backend/app/main.py
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -67,13 +68,12 @@ app = FastAPI(
     title="Smart Home Vulnerability Manager",
     version="2.0.0",
     lifespan=lifespan,
-    # Ocultar /docs en producción si se desea; lo mantenemos para desarrollo
 )
 
 # CORS — permite que el frontend (dev server Vite en :5173 y Electron) llame a la API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # en producción (Pi), restringir a la IP local si se prefiere
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,6 +83,12 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(devices_router)
 app.include_router(scans_router)
+
+
+# ── Health check ───────────────────────────────────────────────────
+@app.get("/health", include_in_schema=False)
+async def health():
+    return {"status": "ok"}
 
 
 # ── Servir el frontend React estático ────────────────────────────────────────

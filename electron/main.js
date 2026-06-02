@@ -1,3 +1,4 @@
+// electron/main.js
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -6,14 +7,14 @@ const { spawn, execSync } = require('child_process');
 // ─── Constantes ──────────────────────────────────────────────────────────────
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json');
 const BACKEND_PORT = 8000;
-const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
-// Ruta dentro de WSL2 donde vive el proyecto (ajustable por el usuario)
+const BACKEND_URL  = `http://localhost:${BACKEND_PORT}`;
 const WSL_PROJECT_PATH = '/home/shvm/smart-home-vuln-manager';
 
 // ─── Estado global ────────────────────────────────────────────────────────────
-let mainWindow = null;
+let mainWindow    = null;
 let loadingWindow = null;
 let backendProcess = null;
+let backendPid = null;
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 function loadConfig() {
@@ -36,16 +37,15 @@ function saveConfig(data) {
 // ─── Verificar WSL2 ──────────────────────────────────────────────────────────
 function isWslAvailable() {
   try {
+    const out = execSync('wsl.exe -e bash -c "echo ok"', { stdio: 'pipe', timeout: 8000 });
+    if (out.toString().trim() === 'ok') return true;
+  } catch { /* continuar */ }
+  // Fallback: --status
+  try {
     execSync('wsl.exe --status', { stdio: 'pipe', timeout: 5000 });
     return true;
   } catch {
-    try {
-      // fallback: intentar correr un comando simple
-      execSync('wsl.exe echo ok', { stdio: 'pipe', timeout: 5000 });
-      return true;
-    } catch {
-      return false;
-    }
+    return false;
   }
 }
 
@@ -54,20 +54,26 @@ function startBackend() {
   return new Promise((resolve, reject) => {
     console.log('[backend] Iniciando en WSL2...');
 
-    // Comando que activa el venv y lanza uvicorn
     const wslCommand = [
       `cd ${WSL_PROJECT_PATH}/backend`,
-      '&& source .venv/bin/activate',
-      `&& uvicorn app.main:app --host 0.0.0.0 --port ${BACKEND_PORT} --log-level warning`,
+      `&& .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${BACKEND_PORT} --log-level warning`,
+      `& echo "UVICORN_PID=$!"`,
     ].join(' ');
 
-    backendProcess = spawn('wsl.exe', ['-e', 'bash', '-c', wslCommand], {
+    backendProcess = spawn('wsl.exe', ['-u', 'shvm', '-e', 'bash', '-c', wslCommand], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true, // invisible para el usuario
+      windowsHide: true,
     });
 
     backendProcess.stdout.on('data', (data) => {
-      console.log('[backend stdout]', data.toString());
+      const text = data.toString();
+      console.log('[backend stdout]', text);
+      // Capturar el PID si el shell lo imprimió
+      const match = text.match(/UVICORN_PID=(\d+)/);
+      if (match) {
+        backendPid = match[1];
+        console.log('[backend] PID uvicorn:', backendPid);
+      }
     });
 
     backendProcess.stderr.on('data', (data) => {
@@ -82,27 +88,27 @@ function startBackend() {
     backendProcess.on('exit', (code) => {
       console.log(`[backend] Proceso terminó con código ${code}`);
       backendProcess = null;
+      backendPid = null;
     });
 
     // Esperar a que el backend responda (polling con timeout)
-    waitForBackend(30000)
+    waitForBackend(60000)
       .then(resolve)
       .catch(reject);
   });
 }
 
 // ─── Esperar a que el backend esté listo ─────────────────────────────────────
-async function waitForBackend(timeoutMs = 30000) {
+async function waitForBackend(timeoutMs = 60000) {
   const interval = 500;
   const maxAttempts = timeoutMs / interval;
 
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
+      const response = await fetch(`${BACKEND_URL}/health`, {
         signal: AbortSignal.timeout(1000),
       });
-      // El backend responde (401 también es válido — está corriendo)
-      if (response.status < 500) {
+      if (response.ok) {
         console.log('[backend] Listo en intento', i + 1);
         return true;
       }
@@ -129,13 +135,22 @@ function stopBackend() {
   if (backendProcess) {
     console.log('[backend] Deteniendo...');
     try {
-      // Matar el proceso uvicorn dentro de WSL2
-      execSync(`wsl.exe -e bash -c "pkill -f 'uvicorn app.main:app'"`, {
-        stdio: 'ignore', timeout: 3000,
-      });
+      if (backendPid) {
+        // Matar el proceso uvicorn por PID exacto
+        execSync(`wsl.exe -u shvm -e bash -c "kill ${backendPid} 2>/dev/null || true"`, {
+          stdio: 'ignore', timeout: 3000,
+        });
+      } else {
+        // Fallback si no tenemos PID: buscar proceso en el puerto específico
+        execSync(
+          `wsl.exe -u shvm -e bash -c "fuser -k ${BACKEND_PORT}/tcp 2>/dev/null || true"`,
+          { stdio: 'ignore', timeout: 3000 }
+        );
+      }
     } catch { /* ignorar errores al cerrar */ }
     backendProcess.kill();
     backendProcess = null;
+    backendPid = null;
   }
 }
 
@@ -156,7 +171,6 @@ function createLoadingWindow() {
   });
 
   loadingWindow.loadFile(path.join(__dirname, 'loading.html'));
-
   loadingWindow.on('closed', () => { loadingWindow = null; });
 }
 
@@ -166,7 +180,7 @@ function createMainWindow() {
     width: 1200,
     height: 800,
     icon: path.join(__dirname, 'assets', 'icon.ico'),
-    show: false, // mostrar solo cuando cargue
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
