@@ -38,7 +38,7 @@ def get_manufacturer(mac: str) -> Optional[str]:
         import urllib.request
         oui = mac.replace(":", "").replace("-", "")[:6].upper()
         url = f"https://api.macvendors.com/{oui}"
-        req = urllib.request.Request(url, headers={"User-Agent": "smart-home-scanner/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "smart-home-vuln-manager/1.0"})
         with urllib.request.urlopen(req, timeout=3) as resp:
             vendor = resp.read().decode().strip()
             if vendor and "Not Found" not in vendor:

@@ -122,7 +122,7 @@ cat > /etc/avahi/services/shvm.service << 'EOF'
 <?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
 <service-group>
-  <name replace-wildcards="yes">Smart Home Security</name>
+  <name replace-wildcards="yes">Smart Home Vulnerability Manager</name>
   <service>
     <type>_http._tcp</type>
     <port>8000</port>

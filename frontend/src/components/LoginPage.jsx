@@ -32,7 +32,7 @@ export default function LoginPage() {
                 d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white">Smart Home Scanner</h1>
+          <h1 className="text-2xl font-bold text-white">Smart Home Vulnerability Manager</h1>
           <p className="text-gray-400 text-sm mt-1">Ingresa tu contraseña para continuar</p>
         </div>
 

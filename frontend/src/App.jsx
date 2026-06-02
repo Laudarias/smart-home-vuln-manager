@@ -128,7 +128,7 @@ function Dashboard() {
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🏠</span>
-          <h1 className="font-bold text-lg">Smart Home Security</h1>
+          <h1 className="font-bold text-lg">Smart Home Vulnerability Manager</h1>
         </div>
         <div className="flex items-center gap-2">
           <button

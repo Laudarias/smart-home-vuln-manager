@@ -2,9 +2,16 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   /**
-   * Verifica la conexión con la Raspberry Pi y guarda su IP.
-   * @param {string} ip - La IP de la Raspberry Pi introducida por el usuario
-   * @returns {Promise<{success: boolean, error?: string}>}
+   * Recibe actualizaciones de progreso del backend (0-100).
+   * Usado por loading.html para animar la barra de carga.
    */
-  checkAndSavePi: (ip) => ipcRenderer.invoke('check-and-save-pi', ip),
+  onProgress: (callback) => {
+    ipcRenderer.on('progress', (_event, pct) => callback(pct));
+  },
+
+  /**
+   * Consulta el estado actual del backend.
+   * @returns {Promise<{backendRunning: boolean}>}
+   */
+  getStatus: () => ipcRenderer.invoke('get-status'),
 });
