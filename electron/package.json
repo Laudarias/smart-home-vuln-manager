@@ -1,0 +1,58 @@
+{
+  "name": "smart-home-vuln-manager-desktop",
+  "version": "1.0.0",
+  "description": "Smart Home Vulnerability Manager — App de escritorio",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "build:all": "electron-builder --win --mac --linux"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "co.uniandes.shvm",
+    "productName": "Smart Home Vulnerability Manager",
+    "copyright": "Copyright © 2025 Universidad de los Andes",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "loading.html",
+      "setup.html",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../install/windows/",
+        "to": "installer/",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "requireAdministrator"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Smart Home Vulnerability Manager",
+      "installerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "include": "../install/windows/installer.nsh",
+      "runAfterFinish": true
+    }
+  }
+}
