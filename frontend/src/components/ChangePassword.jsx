@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { authApi } from "../api/client";
+import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 export default function ChangePassword({ onClose }) {
@@ -22,7 +22,7 @@ export default function ChangePassword({ onClose }) {
     }
     setLoading(true);
     try {
-      await authApi.changePassword(form.current, form.next);
+      await api.changePassword(form.current, form.next);
       setIsDefaultPassword(false);
       setSuccess(true);
     } catch (err) {

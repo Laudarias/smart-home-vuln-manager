@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.config import SCAN_INTERVAL_MINUTES
+from app.config import DEFAULT_SCAN_INTERVAL_MINUTES as SCAN_INTERVAL_MINUTES
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,7 @@ def get_next_run_time() -> str | None:
     if job and job.next_run_time:
         return job.next_run_time.isoformat()
     return None
+
 
 def get_current_interval() -> int:
     """Retorna el intervalo actual en minutos."""

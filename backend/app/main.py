@@ -44,16 +44,7 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
-    # Registrar función de escaneo en el scheduler y arrancar
-    async def _scan_job():
-        db2 = SessionLocal()
-        try:
-            from app.api.scans import run_full_scan
-            run_full_scan(scan_type="scheduled", db=db2)
-        finally:
-            db2.close()
-
-    cs.start_scheduler(_scan_job, DEFAULT_SCAN_INTERVAL_MINUTES)
+    cs.start_scheduler(DEFAULT_SCAN_INTERVAL_MINUTES)
 
     yield  # ← la app está corriendo
 

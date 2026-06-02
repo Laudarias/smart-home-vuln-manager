@@ -20,6 +20,7 @@ from app.models.scan import Scan
 from app.models.device import Device
 from app.models.vulnerability import Vulnerability
 from app.auth import get_current_user
+from app.schemas.scan import ScanOut
 from app.models.user import User
 from scanner.arp_runner import run_arp_scan
 from scanner.nmap_runner import run_nmap

@@ -44,14 +44,18 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     if not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Contraseña incorrecta")
     return {
-        "access_token": create_token({"sub": user.id}),
+        "access_token": create_token({"sub": str(user.id)}),
         "token_type": "bearer",
         "is_default_password": user.is_default_password,
     }
 
 
 @router.post("/change-password")
-def change_password(body: ChangePasswordRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     if not verify_password(body.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
     if len(body.new_password) < 8:
@@ -60,6 +64,7 @@ def change_password(body: ChangePasswordRequest, current_user: User = Depends(ge
     current_user.is_default_password = False
     db.commit()
     return {"message": "Contraseña actualizada"}
+
 
 @router.get("/me")
 def me(current_user: User = Depends(get_current_user)):
