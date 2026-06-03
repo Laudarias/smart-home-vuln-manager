@@ -58,18 +58,18 @@ Este proyecto fue desarrollado como tesis de pregrado en la **Universidad de los
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Pipeline de escaneo                   │
-│                                                          │
-│  arp-scan  ──►  Nmap (XML)  ──►  Nuclei (NDJSON)       │
-│ (descubrir)   (puertos/svcs)  (CVEs + credenciales)     │
+│                   Pipeline de escaneo                   │
+│                                                         │
+│     arp-scan  ──►  Nmap (XML)  ──►  Nuclei (NDJSON)     │
+│   (descubrir)   (puertos/svcs)  (CVEs + credenciales)   │
 └──────────────────────────┬──────────────────────────────┘
                            │
-                  FastAPI + SQLite
-                 (backend REST API)
+                   FastAPI + SQLite
+                  (backend REST API)
                            │
             ┌──────────────┴──────────────┐
             │                             │
-     React + Vite                  Shell Electron
+      React + Vite                  Shell Electron
      (SPA frontend)            (app escritorio Windows)
 ```
 
