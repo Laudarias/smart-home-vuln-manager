@@ -56,8 +56,9 @@ function startBackend() {
 
     const wslCommand = [
       `cd ${WSL_PROJECT_PATH}/backend`,
-      `&& .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${BACKEND_PORT} --log-level warning`,
-      `& echo "UVICORN_PID=$!"`,
+      `&& echo "UVICORN_PID=$$"`,
+      `&& exec .venv/bin/uvicorn app.main:app`,
+      `--host 0.0.0.0 --port ${BACKEND_PORT} --log-level warning`,
     ].join(' ');
 
     backendProcess = spawn('wsl.exe', ['-u', 'shvm', '-e', 'bash', '-c', wslCommand], {

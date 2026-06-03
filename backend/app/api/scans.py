@@ -26,6 +26,7 @@ from scanner.arp_runner import run_arp_scan
 from scanner.nmap_runner import run_nmap
 from scanner.nuclei_runner import run_nuclei
 from scanner.device_identifier import identify_device
+from scanner.device_identifier import discover_mdns_devices, discover_ssdp_devices
 import scanner.continuous_scanner as cs
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,6 @@ def run_full_scan(scan_type: str = "manual", db: Session | None = None):
     # Si no se pasa una sesión, crear una propia
     _own_db = db is None
     if _own_db:
-        from app.models import SessionLocal
         db = SessionLocal()
 
     scan = Scan(
@@ -71,9 +71,9 @@ def run_full_scan(scan_type: str = "manual", db: Session | None = None):
         logger.info("Fase 1: arp-scan")
         arp_results = run_arp_scan()
         if not arp_results:
-            scan.status      = "done"
-            scan.device_count = 0
-            scan.vuln_count  = 0
+            scan.status       = "done"
+            scan.devices_found = 0
+            scan.vulns_found  = 0
             scan.completed_at = datetime.now(timezone.utc)
             db.commit()
             return scan
@@ -99,38 +99,44 @@ def run_full_scan(scan_type: str = "manual", db: Session | None = None):
 
         passive_thread.join(timeout=20)  # esperar mDNS/SSDP máximo 20s
 
-        # ── 4. Enriquecer y guardar dispositivos ───────────────────────
+        # ── 4. Enriquecer y guardar dispositivos ───────────────────────────
         logger.info("Fase 4: enriquecimiento y guardado de dispositivos")
         for d in arp_results:
-            ip  = d["ip"]
-            mac = d["mac"]
+            ip           = d["ip"]
+            mac          = d["mac"]
             manufacturer = d.get("manufacturer")
-            nmap_data = nmap_results.get(ip, {})
+            nmap_data    = nmap_results.get(ip, {})
 
             # Merge de datos arp + nmap
             device_data = {
-                "ip": ip,
-                "mac": mac,
+                "ip":          ip,
+                "mac":         mac,
                 "manufacturer": manufacturer,
-                "hostname": nmap_data.get("hostname"),
-                "os_family": nmap_data.get("os_family"),
-                "os_name": nmap_data.get("os_name"),
+                "hostname":    nmap_data.get("hostname"),
+                "os_family":   nmap_data.get("os_family"),
+                "os_name":     nmap_data.get("os_name"),
                 "os_accuracy": nmap_data.get("os_accuracy"),
-                "ports": nmap_data.get("ports", []),
+                "ports":       nmap_data.get("ports", []),
             }
 
             # Identificar dispositivo (añade mdns_name, netbios_name, device_type, display_name)
             enriched = identify_device(device_data)
 
-            # Guardar/actualizar en DB
+            # ── UPSERT atómico: nunca llamar db.add() si el IP ya existe ──
+            # Buscar primero; si no existe, crear el objeto y añadirlo.
+            # Luego, en ambos casos, actualizar los campos sobre el mismo objeto.
+            # Esto evita el IntegrityError por UNIQUE constraint en devices.ip
+            # cuando la sesión ya tiene una excepción pendiente o existe una
+            # condición de carrera entre escaneos concurrentes.
             device = db.query(Device).filter(Device.ip == ip).first()
-            if device:
-                for key, value in enriched.items():
-                    setattr(device, key, value)
-                device.status = "active"
-                device.last_seen = datetime.now(timezone.utc)
-            else:
-                db.add(Device(**enriched, status="active"))
+            if device is None:
+                device = Device(ip=ip)
+                db.add(device)
+
+            for key, value in enriched.items():
+                setattr(device, key, value)
+            device.status    = "active"
+            device.last_seen = datetime.now(timezone.utc)
 
         # Marcar como offline los dispositivos que no aparecieron en este escaneo
         db.query(Device).filter(Device.ip.notin_(ips)).update(
@@ -148,15 +154,15 @@ def run_full_scan(scan_type: str = "manual", db: Session | None = None):
             device = db.query(Device).filter(Device.ip == vuln["ip"]).first()
             if device:
                 db.add(Vulnerability(
-                    device_id=device.id,
-                    scan_id=scan.id,
-                    cve_id=vuln["cve_id"],
-                    title=vuln["title"],
-                    severity=vuln["severity"],
-                    cvss_score=vuln["cvss_score"],
-                    description=vuln["description"],
-                    solution=vuln["solution"],
-                    references=vuln["references"],
+                    device_id   = device.id,
+                    scan_id     = scan.id,
+                    cve_id      = vuln["cve_id"],
+                    title       = vuln["title"],
+                    severity    = vuln["severity"],
+                    cvss_score  = vuln["cvss_score"],
+                    description = vuln["description"],
+                    solution    = vuln["solution"],
+                    references  = vuln["references"],
                 ))
                 vuln_count += 1
 
@@ -172,7 +178,8 @@ def run_full_scan(scan_type: str = "manual", db: Session | None = None):
 
     except Exception as e:
         logger.exception("Error durante el escaneo")
-        scan.status       = "error"
+        db.rollback()
+        scan.status        = "error"
         scan.error_message = str(e)
         scan.completed_at  = datetime.now(timezone.utc)
         db.commit()
@@ -213,9 +220,9 @@ def get_scans(
 def scan_status(current_user: User = Depends(get_current_user)):
     """Informa si hay un escaneo en curso y cuándo es el próximo escaneo automático."""
     return {
-        "scanning": _scan_lock.locked(),
+        "scanning":         _scan_lock.locked(),
         "interval_minutes": cs.get_current_interval(),
-        "next_run": cs.get_next_run_time(),
+        "next_run":         cs.get_next_run_time(),
     }
 
 
@@ -227,7 +234,7 @@ def set_scan_interval(
     """Cambia el intervalo de escaneo automático (0 = desactivar)."""
     cs.update_interval(body.scan_interval_minutes)
     return {
-        "message": "Intervalo actualizado",
+        "message":          "Intervalo actualizado",
         "interval_minutes": body.scan_interval_minutes,
-        "next_run": cs.get_next_run_time(),
+        "next_run":         cs.get_next_run_time(),
     }
