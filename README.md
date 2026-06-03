@@ -94,7 +94,6 @@ Este proyecto fue desarrollado como tesis de pregrado en la **Universidad de los
 | **Plataforma** | Windows (WSL2) | Raspberry Pi | Raspberry Pi + Windows |
 | **Tipo de escaneo** | Solo activo | Activo + Pasivo | Activo + Pasivo |
 | **Acceso** | App Electron en escritorio | Cualquier navegador en la LAN | App Electron (cliente remoto) |
-| **Ideal para** | Un solo PC Windows | Cobertura de todo el hogar | Hogar con múltiples dispositivos |
 | **Dificultad de instalación** | Baja (instalador) | Media (un script) | Media |
 
 ---
