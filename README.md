@@ -1,8 +1,6 @@
-<div align="center">
+# 🏠Smart Home Vulnerability Manager🛡️
 
-<h1>🏠Smart Home Vulnerability Manager🛡️</h1>
-
-<p><strong>Plataforma open source de gestión de vulnerabilidades IoT para usuarios domésticos no técnicos</strong></p>
+**Plataforma open source de gestión de vulnerabilidades IoT para usuarios domésticos no técnicos**
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
@@ -11,10 +9,7 @@
 [![Plataforma](https://img.shields.io/badge/Plataforma-Windows%20%7C%20Raspberry%20Pi-lightgrey)]()
 [![Académico](https://img.shields.io/badge/Proyecto-Tesis%20%40%20Uniandes-d62728)]()
 
-<br/>
-<p><em>Descubrimiento automático de dispositivos, escaneo de vulnerabilidades y reportes en lenguaje claro — sin conocimientos técnicos.</em></p>
-
-</div>
+*Descubrimiento automático de dispositivos, escaneo de vulnerabilidades y reportes en lenguaje claro — sin conocimientos técnicos.*
 
 ---
 
