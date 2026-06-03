@@ -82,6 +82,12 @@ function Wsl-RunAsUser($command) {
     return $result
 }
 
+# ─── Establecer Ubuntu como distro por defecto ──────────────────────────────────────
+Log "Configurando distribución por defecto..."
+wsl.exe --set-default Ubuntu | Out-Null
+LogOk "Ubuntu configurado como distro por defecto"
+
+
 # ─── 3. Crear usuario dedicado shvm ──────────────────────────────────────────
 Log "Configurando usuario del sistema..."
 
